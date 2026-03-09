@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HIPAA Security Risk Assessment</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- Onboarding Overlay -->
+  <div id="onboarding" class="onboarding-overlay" aria-modal="true" role="dialog">
+    <div class="onboarding-card">
+      <div class="onboarding-steps">
+        <div class="onboarding-step active" data-step="0">
+          <div class="onboarding-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+          </div>
+          <h2>Assess Your HIPAA Compliance</h2>
+          <p>Walk through 22 security controls covering Administrative, Physical, Technical, and Documentation safeguards required by the HIPAA Security Rule.</p>
+        </div>
+        <div class="onboarding-step" data-step="1">
+          <div class="onboarding-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h2>Track Risks and Remediation</h2>
+          <p>Identify threats, score their likelihood and impact, and build a prioritized remediation plan with owners and deadlines. Gaps are flagged automatically.</p>
+        </div>
+        <div class="onboarding-step" data-step="2">
+          <div class="onboarding-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <h2>Export and Share Reports</h2>
+          <p>Save your work automatically. Export a polished PDF report with executive summary, download CSV data, or back up your responses as JSON. Everything stays in your browser.</p>
+        </div>
+      </div>
+      <div class="onboarding-nav">
+        <div class="onboarding-dots">
+          <button class="dot active" data-dot="0" aria-label="Step 1"></button>
+          <button class="dot" data-dot="1" aria-label="Step 2"></button>
+          <button class="dot" data-dot="2" aria-label="Step 3"></button>
+        </div>
+        <div class="onboarding-actions">
+          <button id="onboarding-skip" class="btn btn-ghost">Skip</button>
+          <button id="onboarding-next" class="btn btn-primary">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Celebration Canvas -->
+  <canvas id="confetti-canvas" aria-hidden="true"></canvas>
+
+  <!-- App Shell -->
+  <div class="app-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <svg class="brand-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span class="brand-text">HIPAA SRA</span>
+        </div>
+        <button id="theme-toggle" class="btn-icon" aria-label="Toggle dark mode" title="Toggle theme (T)">
+          <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav" role="tablist" aria-label="Assessment sections">
+        <button class="nav-item active" data-tab="org" role="tab" aria-selected="true" title="Organization (1)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Organization</span>
+        </button>
+        <button class="nav-item" data-tab="admin" role="tab" aria-selected="false" title="Administrative (2)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          <span>Administrative</span>
+          <span class="nav-badge" id="badge-admin">0/9</span>
+        </button>
+        <button class="nav-item" data-tab="physical" role="tab" aria-selected="false" title="Physical (3)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Physical</span>
+          <span class="nav-badge" id="badge-physical">0/4</span>
+        </button>
+        <button class="nav-item" data-tab="technical" role="tab" aria-selected="false" title="Technical (4)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>Technical</span>
+          <span class="nav-badge" id="badge-technical">0/6</span>
+        </button>
+        <button class="nav-item" data-tab="docs" role="tab" aria-selected="false" title="Documentation (5)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Documentation</span>
+          <span class="nav-badge" id="badge-docs">0/3</span>
+        </button>
+
+        <div class="nav-divider"></div>
+
+        <button class="nav-item" data-tab="risk" role="tab" aria-selected="false" title="Risk Register (6)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>Risk Register</span>
+        </button>
+        <button class="nav-item" data-tab="gaps" role="tab" aria-selected="false" title="Gap Analysis (7)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Gap Analysis</span>
+        </button>
+        <button class="nav-item" data-tab="attest" role="tab" aria-selected="false" title="Attestation (8)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <span>Attestation</span>
+        </button>
+
+        <div class="nav-divider"></div>
+
+        <button class="nav-item" data-tab="history" role="tab" aria-selected="false" title="History (9)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>History</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Score Summary -->
+      <div class="sidebar-summary">
+        <div class="score-ring-wrap">
+          <svg class="score-ring" viewBox="0 0 100 100">
+            <circle class="score-ring-bg" cx="50" cy="50" r="42" fill="none" stroke-width="8"/>
+            <circle class="score-ring-fill" cx="50" cy="50" r="42" fill="none" stroke-width="8"
+              stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round"
+              transform="rotate(-90 50 50)"/>
+          </svg>
+          <div class="score-ring-label">
+            <span class="score-value" id="sidebar-score">0</span>
+            <span class="score-unit">%</span>
+          </div>
+        </div>
+        <div class="score-meta">
+          <span class="risk-badge" id="sidebar-risk-level">Not Started</span>
+          <span class="answered-count"><span id="sidebar-answered">0</span> / <span id="sidebar-total">22</span> answered</span>
+        </div>
+      </div>
+
+      <!-- Sidebar Actions -->
+      <div class="sidebar-actions">
+        <button id="btn-export-pdf" class="btn btn-outline btn-sm" title="Export PDF report">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          PDF Report
+        </button>
+        <button id="btn-export-json" class="btn btn-outline btn-sm" title="Export JSON backup">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export JSON
+        </button>
+        <button id="btn-export-csv" class="btn btn-outline btn-sm" title="Export CSV spreadsheet">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+          Export CSV
+        </button>
+        <label class="btn btn-outline btn-sm import-label" title="Import JSON backup">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import JSON
+          <input type="file" id="import-file" accept=".json" hidden>
+        </label>
+      </div>
+    </aside>
+
+    <!-- Mobile Header -->
+    <header class="mobile-header" id="mobile-header">
+      <button id="mobile-menu-btn" class="btn-icon" aria-label="Open menu">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="mobile-title">HIPAA SRA</span>
+      <button id="mobile-theme-toggle" class="btn-icon" aria-label="Toggle theme">
+        <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        <svg class="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content" id="main-content">
+
+      <!-- Organization Tab -->
+      <section class="tab-panel active" id="panel-org" role="tabpanel">
+        <div class="panel-header">
+          <h1>Organization Details</h1>
+          <p class="panel-desc">Identify the entity being assessed and the scope of this Security Risk Assessment.</p>
+        </div>
+        <div class="card">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="org-name">Organization / Entity Name</label>
+              <input type="text" id="org-name" placeholder="e.g., Acme Health Services LLC" data-field="orgName">
+            </div>
+            <div class="form-group">
+              <label for="assess-date">Assessment Date</label>
+              <input type="date" id="assess-date" data-field="assessDate">
+            </div>
+            <div class="form-group">
+              <label for="assessor-name">Assessor Name &amp; Title</label>
+              <input type="text" id="assessor-name" placeholder="e.g., John Smith — Chief Security Officer" data-field="assessorName">
+            </div>
+            <div class="form-group">
+              <label for="entity-type">Entity Type</label>
+              <select id="entity-type" data-field="entityType">
+                <option value="">Select...</option>
+                <option value="ce">Covered Entity</option>
+                <option value="ba">Business Associate</option>
+                <option value="hybrid">Hybrid Entity</option>
+              </select>
+            </div>
+            <div class="form-group full-width">
+              <label for="scope-desc">Scope Description</label>
+              <textarea id="scope-desc" rows="4" placeholder="Describe the systems, facilities, and ePHI repositories included in this assessment (e.g., EHR platform, cloud backups, telehealth systems, on-site server room, employee laptops)." data-field="scopeDesc"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Administrative Safeguards Tab -->
+      <section class="tab-panel" id="panel-admin" role="tabpanel">
+        <div class="panel-header">
+          <h1>Administrative Safeguards</h1>
+          <p class="panel-desc">45 CFR &sect; 164.308 &mdash; Policies and procedures designed to manage the selection, development, implementation, and maintenance of security measures.</p>
+          <div class="filter-bar" id="filter-admin">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="unanswered">Unanswered</button>
+            <button class="filter-btn" data-filter="yes">Compliant</button>
+            <button class="filter-btn" data-filter="partial">Partial</button>
+            <button class="filter-btn" data-filter="no">Non-Compliant</button>
+          </div>
+        </div>
+        <div class="controls-list" id="controls-admin"></div>
+      </section>
+
+      <!-- Physical Safeguards Tab -->
+      <section class="tab-panel" id="panel-physical" role="tabpanel">
+        <div class="panel-header">
+          <h1>Physical Safeguards</h1>
+          <p class="panel-desc">45 CFR &sect; 164.310 &mdash; Physical measures, policies, and procedures to protect electronic information systems and related buildings and equipment.</p>
+          <div class="filter-bar" id="filter-physical">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="unanswered">Unanswered</button>
+            <button class="filter-btn" data-filter="yes">Compliant</button>
+            <button class="filter-btn" data-filter="partial">Partial</button>
+            <button class="filter-btn" data-filter="no">Non-Compliant</button>
+          </div>
+        </div>
+        <div class="controls-list" id="controls-physical"></div>
+      </section>
+
+      <!-- Technical Safeguards Tab -->
+      <section class="tab-panel" id="panel-technical" role="tabpanel">
+        <div class="panel-header">
+          <h1>Technical Safeguards</h1>
+          <p class="panel-desc">45 CFR &sect; 164.312 &mdash; Technology and related policies and procedures that protect electronic protected health information and control access.</p>
+          <div class="filter-bar" id="filter-technical">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="unanswered">Unanswered</button>
+            <button class="filter-btn" data-filter="yes">Compliant</button>
+            <button class="filter-btn" data-filter="partial">Partial</button>
+            <button class="filter-btn" data-filter="no">Non-Compliant</button>
+          </div>
+        </div>
+        <div class="controls-list" id="controls-technical"></div>
+      </section>
+
+      <!-- Documentation Tab -->
+      <section class="tab-panel" id="panel-docs" role="tabpanel">
+        <div class="panel-header">
+          <h1>Policies, Procedures &amp; Documentation</h1>
+          <p class="panel-desc">45 CFR &sect; 164.316 &mdash; Requirements for documenting policies and procedures and maintaining written records.</p>
+          <div class="filter-bar" id="filter-docs">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="unanswered">Unanswered</button>
+            <button class="filter-btn" data-filter="yes">Compliant</button>
+            <button class="filter-btn" data-filter="partial">Partial</button>
+            <button class="filter-btn" data-filter="no">Non-Compliant</button>
+          </div>
+        </div>
+        <div class="controls-list" id="controls-docs"></div>
+      </section>
+
+      <!-- Risk Register Tab -->
+      <section class="tab-panel" id="panel-risk" role="tabpanel">
+        <div class="panel-header">
+          <h1>Risk Register</h1>
+          <p class="panel-desc">Document identified threats and vulnerabilities, assess their likelihood and impact, and define your remediation strategy.</p>
+        </div>
+        <div id="risk-content"></div>
+      </section>
+
+      <!-- Gap Analysis Tab -->
+      <section class="tab-panel" id="panel-gaps" role="tabpanel">
+        <div class="panel-header">
+          <h1>Gap Analysis</h1>
+          <p class="panel-desc">Controls that are not fully met. Use this view to prioritize your remediation roadmap.</p>
+        </div>
+        <div id="gaps-content"></div>
+      </section>
+
+      <!-- Attestation Tab -->
+      <section class="tab-panel" id="panel-attest" role="tabpanel">
+        <div class="panel-header">
+          <h1>Management Attestation</h1>
+          <p class="panel-desc">Executive sign-off certifying the accuracy of this assessment and authorizing the remediation plan.</p>
+        </div>
+        <div class="card">
+          <div class="attestation-text">
+            <p>I hereby attest that the information provided in this HIPAA Security Risk Assessment is accurate and complete to the best of my knowledge. I have reviewed the identified gaps, the associated risk levels, and the remediation plan. I authorize the execution of the proposed remediation activities and accept any residual risks documented herein.</p>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="exec-name">Executive Name</label>
+              <input type="text" id="exec-name" placeholder="e.g., Jane Doe" data-field="execName">
+            </div>
+            <div class="form-group">
+              <label for="exec-title">Title / Role</label>
+              <input type="text" id="exec-title" placeholder="e.g., Chief Privacy Officer" data-field="execTitle">
+            </div>
+            <div class="form-group">
+              <label for="attest-date">Date</label>
+              <input type="date" id="attest-date" data-field="attestDate">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- History Tab -->
+      <section class="tab-panel" id="panel-history" role="tabpanel">
+        <div class="panel-header">
+          <h1>Assessment History</h1>
+          <p class="panel-desc">Past assessments saved in your browser. Compare scores over time and track compliance trends.</p>
+        </div>
+        <div id="history-content"></div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="main-footer">
+        <p><strong>Privacy:</strong> This tool runs entirely in your browser. No data is transmitted to any server. Use Export to save your work locally.</p>
+        <p><strong>Disclaimer:</strong> This tool is for informational and compliance-support purposes only. It does not constitute legal advice. Consult qualified counsel or a compliance professional to validate findings.</p>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <script src="js/controls.js"></script>
+  <script src="js/risk.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
