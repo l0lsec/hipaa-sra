@@ -30,8 +30,15 @@ const RiskModule = (() => {
     return 'priority-high';
   }
 
+  function getActiveControlsList() {
+    if (typeof App !== 'undefined' && App.getActiveControls) {
+      return App.getActiveControls();
+    }
+    return CONTROLS;
+  }
+
   function getGapControls(state) {
-    return CONTROLS.filter(c => {
+    return getActiveControlsList().filter(c => {
       const r = state.responses[c.id];
       return r === 0 || r === 1;
     }).sort((a, b) => (state.responses[a.id] ?? 99) - (state.responses[b.id] ?? 99));
@@ -177,6 +184,9 @@ const RiskModule = (() => {
         h += `<div class="gap-item"><span class="gap-status ${sCls}">${sLabel}</span><div class="gap-detail">`;
         h += `<div class="control-id">${g.id} \u2014 ${g.ref}</div>`;
         h += `<div class="control-text">${g.text}</div>`;
+        if (g.remediation) {
+          h += `<div style="margin-top:8px;padding:10px 14px;background:var(--clr-accent-light);border-left:3px solid var(--clr-accent);border-radius:var(--radius-sm);font-size:.82rem;color:var(--clr-text-secondary);line-height:1.5"><strong style="color:var(--clr-accent)">Remediation:</strong> ${esc(g.remediation)}</div>`;
+        }
         if (state.notes[g.id]) h += `<div style="margin-top:6px;font-size:.82rem;color:var(--clr-text-muted)"><strong>Notes:</strong> ${esc(state.notes[g.id])}</div>`;
         h += '</div></div>';
       });

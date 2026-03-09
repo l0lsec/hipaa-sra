@@ -1,7 +1,8 @@
 /* ============================================================
    HIPAA SRA Tool — Main Application
    State management, rendering, tabs, filtering, onboarding,
-   history, theme toggle, keyboard shortcuts, confetti
+   history, theme toggle, keyboard shortcuts, confetti,
+   org-type filtering, remediation UI, attestation summary
    ============================================================ */
 
 const App = (() => {
@@ -9,7 +10,7 @@ const App = (() => {
   const HISTORY_KEY = 'hipaa_sra_history';
   const ONBOARD_KEY = 'hipaa_sra_onboarded';
   const THEME_KEY   = 'hipaa_sra_theme';
-  const CIRCUMFERENCE = 2 * Math.PI * 42; // score ring
+  const CIRCUMFERENCE = 2 * Math.PI * 42;
 
   let state = createBlankState();
   let activeTab = 'org';
@@ -23,7 +24,9 @@ const App = (() => {
       notes: {},
       risk: {},
       remediation: {},
-      attestation: {}
+      attestation: {},
+      policyAcknowledgments: {},
+      trainingProgress: {}
     };
   }
 
@@ -38,12 +41,14 @@ const App = (() => {
       if (raw) {
         const parsed = JSON.parse(raw);
         state = {
-          metadata:    parsed.metadata    || {},
-          responses:   parsed.responses   || {},
-          notes:       parsed.notes       || {},
-          risk:        parsed.risk        || {},
-          remediation: parsed.remediation || {},
-          attestation: parsed.attestation || {}
+          metadata:              parsed.metadata              || {},
+          responses:             parsed.responses             || {},
+          notes:                 parsed.notes                 || {},
+          risk:                  parsed.risk                  || {},
+          remediation:           parsed.remediation           || {},
+          attestation:           parsed.attestation           || {},
+          policyAcknowledgments: parsed.policyAcknowledgments || {},
+          trainingProgress:      parsed.trainingProgress      || {}
         };
       }
     } catch {}
@@ -59,11 +64,27 @@ const App = (() => {
     try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch {}
   }
 
+  /* ── Org-Type Filtering ─────────────────────────────── */
+  function getActiveControls() {
+    const et = state.metadata.entityType;
+    if (et === 'ba') {
+      return CONTROLS.filter(c => c.applicableTo !== 'ce_only');
+    }
+    return CONTROLS;
+  }
+
+  function getActiveCategories() {
+    const active = getActiveControls();
+    const activeCats = new Set(active.map(c => c.cat));
+    return CATEGORIES.filter(c => activeCats.has(c.key));
+  }
+
   /* ── Scoring ────────────────────────────────────────── */
   function computeScore() {
-    const answered = Object.keys(state.responses).length;
-    const sum = Object.values(state.responses).reduce((a, v) => a + (v || 0), 0);
-    const total = CONTROLS.length;
+    const controls = getActiveControls();
+    const answered = controls.filter(c => state.responses[c.id] !== undefined).length;
+    const sum = controls.reduce((a, c) => a + (state.responses[c.id] || 0), 0);
+    const total = controls.length;
     const pct = total > 0 ? Math.round((sum / (total * 2)) * 100) : 0;
     let level = 'Not Started';
     let levelClass = '';
@@ -97,6 +118,7 @@ const App = (() => {
     }
 
     updateCategoryBadges();
+    updateProgressDashboard();
 
     if (s.pct >= 85 && s.answered >= s.total && !confettiTriggered) {
       confettiTriggered = true;
@@ -105,21 +127,29 @@ const App = (() => {
   }
 
   function updateCategoryBadges() {
+    const active = getActiveControls();
     CATEGORIES.forEach(cat => {
-      const controls = CONTROLS.filter(c => c.cat === cat.key);
+      const controls = active.filter(c => c.cat === cat.key);
       const answered = controls.filter(c => state.responses[c.id] !== undefined).length;
       const el = document.getElementById('badge-' + cat.key);
       if (el) el.textContent = `${answered}/${controls.length}`;
     });
   }
 
-  /* ── Control Rendering ──────────────────────────────── */
+  function updateProgressDashboard() {
+    if (typeof ProgressModule !== 'undefined') {
+      ProgressModule.renderDashboard(state, getActiveControls());
+    }
+  }
+
+  /* ── Control Rendering (with remediation) ───────────── */
   function renderControls(catKey) {
     const container = document.getElementById('controls-' + catKey);
     if (!container) return;
 
     const filter = activeFilters[catKey] || 'all';
-    let controls = CONTROLS.filter(c => c.cat === catKey);
+    const active = getActiveControls();
+    let controls = active.filter(c => c.cat === catKey);
 
     if (filter !== 'all') {
       controls = controls.filter(c => {
@@ -149,6 +179,14 @@ const App = (() => {
       else if (resp === 1) answerPrint = '<span class="control-answer-print" style="background:#fef3c7;color:#d97706">Partial</span>';
       else if (resp === 0) answerPrint = '<span class="control-answer-print" style="background:#fee2e2;color:#dc2626">No</span>';
 
+      let remediationHtml = '';
+      if (c.remediation) {
+        remediationHtml = `<button class="remediation-toggle" data-remediation="${c.id}">` +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>' +
+          'Remediation steps</button>' +
+          `<div class="remediation-content" id="remediation-${c.id}">${c.remediation}</div>`;
+      }
+
       return `<div class="${cardClass}" data-control="${c.id}">
         <div class="control-header">
           <div>
@@ -168,6 +206,7 @@ const App = (() => {
           How to comply
         </button>
         <div class="guidance-content" id="guidance-${c.id}">${c.guidance}</div>
+        ${remediationHtml}
         <div class="control-notes">
           <textarea placeholder="Notes / evidence\u2026" data-note="${c.id}">${escHtml(state.notes[c.id])}</textarea>
         </div>
@@ -194,9 +233,18 @@ const App = (() => {
     });
 
     container.querySelectorAll('.guidance-toggle').forEach(btn => {
-      btn.addEventListener('click', e => {
+      btn.addEventListener('click', () => {
         const id = btn.dataset.guidance;
         const content = document.getElementById('guidance-' + id);
+        btn.classList.toggle('open');
+        content.classList.toggle('open');
+      });
+    });
+
+    container.querySelectorAll('.remediation-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.remediation;
+        const content = document.getElementById('remediation-' + id);
         btn.classList.toggle('open');
         content.classList.toggle('open');
       });
@@ -223,14 +271,22 @@ const App = (() => {
       p.classList.toggle('active', p.id === 'panel-' + tabKey);
     });
 
-    if (['admin','physical','technical','docs'].includes(tabKey)) {
+    if (['admin','physical','technical','organizational','docs'].includes(tabKey)) {
       renderControls(tabKey);
     } else if (tabKey === 'risk') {
       RiskModule.renderRiskRegister(state);
     } else if (tabKey === 'gaps') {
       RiskModule.renderGapAnalysis(state);
+    } else if (tabKey === 'policies') {
+      PolicyModule.renderPolicyLibrary(state);
+    } else if (tabKey === 'training') {
+      TrainingModule.renderTraining(state);
+    } else if (tabKey === 'attest') {
+      renderAttestationSummary();
     } else if (tabKey === 'history') {
       renderHistory();
+    } else if (tabKey === 'org') {
+      updateProgressDashboard();
     }
 
     closeMobileSidebar();
@@ -266,8 +322,50 @@ const App = (() => {
       el.addEventListener('input', () => {
         state[bucket][field] = el.value;
         saveState();
+
+        if (field === 'entityType') {
+          onEntityTypeChange();
+        }
       });
     });
+  }
+
+  function onEntityTypeChange() {
+    updateScoreboard();
+    const catTabs = ['admin','physical','technical','organizational','docs'];
+    catTabs.forEach(cat => {
+      if (activeTab === cat) renderControls(cat);
+    });
+  }
+
+  /* ── Attestation Summary ────────────────────────────── */
+  function renderAttestationSummary() {
+    const el = document.getElementById('attestation-policy-summary');
+    if (!el) return;
+
+    if (typeof PolicyModule === 'undefined') {
+      el.innerHTML = '';
+      return;
+    }
+
+    const summary = PolicyModule.getAcknowledgmentSummary(state);
+    let h = '<div class="attest-policy-section">';
+    h += '<h3>Policy Attestation Summary</h3>';
+    h += `<p style="font-size:.85rem;color:var(--clr-text-secondary);margin-bottom:16px">${summary.acknowledged} of ${summary.total} applicable policies acknowledged (${summary.pct}%)</p>`;
+
+    Object.keys(summary.byCategory).forEach(key => {
+      const cat = summary.byCategory[key];
+      if (cat.total === 0) return;
+      const pct = Math.round((cat.acknowledged / cat.total) * 100);
+      h += '<div class="attest-category-bar">';
+      h += `<span class="attest-category-label">${cat.label}</span>`;
+      h += `<div class="attest-bar-track"><div class="attest-bar-fill" style="width:${pct}%"></div></div>`;
+      h += `<span class="attest-bar-count">${cat.acknowledged}/${cat.total}</span>`;
+      h += '</div>';
+    });
+
+    h += '</div>';
+    el.innerHTML = h;
   }
 
   /* ── Theme ──────────────────────────────────────────── */
@@ -455,12 +553,14 @@ const App = (() => {
         if (history[idx] && history[idx].snapshot) {
           if (confirm('Load this saved assessment? Your current work will be replaced (save it first if needed).')) {
             const snap = history[idx].snapshot;
-            state.metadata    = snap.metadata    || {};
-            state.responses   = snap.responses   || {};
-            state.notes       = snap.notes       || {};
-            state.risk        = snap.risk        || {};
-            state.remediation = snap.remediation || {};
-            state.attestation = snap.attestation || {};
+            state.metadata              = snap.metadata              || {};
+            state.responses             = snap.responses             || {};
+            state.notes                 = snap.notes                 || {};
+            state.risk                  = snap.risk                  || {};
+            state.remediation           = snap.remediation           || {};
+            state.attestation           = snap.attestation           || {};
+            state.policyAcknowledgments = snap.policyAcknowledgments || {};
+            state.trainingProgress      = snap.trainingProgress      || {};
             saveState();
             hydrate();
             switchTab('org');
@@ -540,8 +640,6 @@ const App = (() => {
 
   /* ── Keyboard Shortcuts ─────────────────────────────── */
   function initKeyboard() {
-    const tabKeys = ['org','admin','physical','technical','docs','risk','gaps','attest','history'];
-
     document.addEventListener('keydown', e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
@@ -550,10 +648,11 @@ const App = (() => {
         return;
       }
 
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= tabKeys.length) {
+      if (e.key === '/') {
         e.preventDefault();
-        switchTab(tabKeys[num - 1]);
+        const searchInput = document.getElementById('sidebar-search');
+        if (searchInput) searchInput.focus();
+        return;
       }
     });
   }
@@ -562,18 +661,20 @@ const App = (() => {
   function initExport() {
     document.getElementById('btn-export-json').addEventListener('click', () => ExportModule.exportJSON(state));
     document.getElementById('btn-export-csv').addEventListener('click', () => ExportModule.exportCSV(state));
-    document.getElementById('btn-export-pdf').addEventListener('click', () => ExportModule.exportPDF(state));
+    document.getElementById('btn-export-pdf').addEventListener('click', () => ExportModule.exportPDF(state, getActiveControls()));
 
     document.getElementById('import-file').addEventListener('change', e => {
       const file = e.target.files[0];
       if (!file) return;
       ExportModule.importJSON(file, data => {
-        state.metadata    = data.metadata    || {};
-        state.responses   = data.responses   || {};
-        state.notes       = data.notes       || {};
-        state.risk        = data.risk        || {};
-        state.remediation = data.remediation || {};
-        state.attestation = data.attestation || {};
+        state.metadata              = data.metadata              || {};
+        state.responses             = data.responses             || {};
+        state.notes                 = data.notes                 || {};
+        state.risk                  = data.risk                  || {};
+        state.remediation           = data.remediation           || {};
+        state.attestation           = data.attestation           || {};
+        state.policyAcknowledgments = data.policyAcknowledgments || {};
+        state.trainingProgress      = data.trainingProgress      || {};
         saveState();
         hydrate();
         switchTab('org');
@@ -612,10 +713,14 @@ const App = (() => {
       btn.addEventListener('click', () => switchTab(btn.dataset.tab));
     });
 
+    if (typeof SearchModule !== 'undefined') {
+      SearchModule.initSearch(switchTab);
+    }
+
     renderControls('admin');
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  return { saveState, computeScore, state: () => state };
+  return { saveState, computeScore, getActiveControls, switchTab, state: () => state };
 })();

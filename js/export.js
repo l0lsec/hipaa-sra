@@ -1,5 +1,6 @@
 /* ============================================================
    HIPAA SRA Tool — Export / Import / PDF Report
+   Includes policies, training, and remediation data
    ============================================================ */
 
 const ExportModule = (() => {
@@ -22,14 +23,16 @@ const ExportModule = (() => {
   /* ── JSON Export ─────────────────────────────────────── */
   function exportJSON(state) {
     const payload = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       metadata: state.metadata || {},
       responses: state.responses || {},
       notes: state.notes || {},
       risk: state.risk || {},
       remediation: state.remediation || {},
-      attestation: state.attestation || {}
+      attestation: state.attestation || {},
+      policyAcknowledgments: state.policyAcknowledgments || {},
+      trainingProgress: state.trainingProgress || {}
     };
     downloadFile(JSON.stringify(payload, null, 2), `hipaa-sra-${timestamp()}.json`, 'application/json');
   }
@@ -54,9 +57,11 @@ const ExportModule = (() => {
 
   /* ── CSV Export ──────────────────────────────────────── */
   function exportCSV(state) {
-    const rows = [['Control ID', 'Category', 'Control Description', 'Response', 'Score', 'Notes / Evidence']];
+    const activeControls = (typeof App !== 'undefined' && App.getActiveControls) ? App.getActiveControls() : CONTROLS;
 
-    CONTROLS.forEach(c => {
+    const rows = [['Control ID', 'Category', 'Control Description', 'Response', 'Score', 'Remediation Steps', 'Notes / Evidence']];
+
+    activeControls.forEach(c => {
       const cat = CATEGORIES.find(x => x.key === c.cat);
       const val = state.responses[c.id];
       let label = 'Unanswered';
@@ -71,9 +76,45 @@ const ExportModule = (() => {
         csvSafe(c.text),
         label,
         score,
+        csvSafe(c.remediation || ''),
         csvSafe(state.notes[c.id] || '')
       ]);
     });
+
+    rows.push([]);
+    rows.push(['--- Policy Acknowledgments ---']);
+    rows.push(['Policy ID', 'Policy Name', 'Acknowledged', 'Date']);
+
+    if (typeof PolicyModule !== 'undefined') {
+      const acks = state.policyAcknowledgments || {};
+      PolicyModule.POLICIES.forEach(p => {
+        const ack = acks[p.id];
+        rows.push([
+          p.id,
+          csvSafe(p.name),
+          ack && ack.acknowledged ? 'Yes' : 'No',
+          (ack && ack.date) || ''
+        ]);
+      });
+    }
+
+    rows.push([]);
+    rows.push(['--- Training Progress ---']);
+    rows.push(['Module ID', 'Module Title', 'Completed', 'Date', 'Completed By']);
+
+    if (typeof TrainingModule !== 'undefined') {
+      const progress = state.trainingProgress || {};
+      TrainingModule.MODULES.forEach(m => {
+        const p = progress[m.id] || {};
+        rows.push([
+          m.id,
+          csvSafe(m.title),
+          p.completed ? 'Yes' : 'No',
+          p.date || '',
+          csvSafe(p.completedBy || '')
+        ]);
+      });
+    }
 
     const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     downloadFile(csv, `hipaa-sra-${timestamp()}.csv`, 'text/csv');
@@ -84,11 +125,12 @@ const ExportModule = (() => {
   }
 
   /* ── PDF Report (print-friendly new window) ─────────── */
-  function exportPDF(state) {
+  function exportPDF(state, activeControls) {
+    const controls = activeControls || ((typeof App !== 'undefined' && App.getActiveControls) ? App.getActiveControls() : CONTROLS);
     const meta = state.metadata || {};
-    const answered = Object.keys(state.responses).length;
-    const total = CONTROLS.length;
-    const sum = Object.values(state.responses).reduce((a, v) => a + (v || 0), 0);
+    const answered = controls.filter(c => state.responses[c.id] !== undefined).length;
+    const total = controls.length;
+    const sum = controls.reduce((a, c) => a + (state.responses[c.id] || 0), 0);
     const pct = total > 0 ? Math.round((sum / (total * 2)) * 100) : 0;
     const riskLvl = pct >= 85 ? 'Low' : pct >= 60 ? 'Moderate' : 'Elevated';
     const riskClr = pct >= 85 ? '#059669' : pct >= 60 ? '#d97706' : '#dc2626';
@@ -126,6 +168,7 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
 .status-no{color:#dc2626;font-weight:600}
 .status-unanswered{color:#8494a7}
 .section{page-break-inside:avoid;margin-bottom:8px}
+.remediation-text{font-size:.78rem;color:#556479;margin-top:4px;padding:6px 10px;background:#fef3c7;border-left:3px solid #d97706;border-radius:4px}
 .footer{margin-top:40px;padding-top:16px;border-top:1px solid #dce1e8;font-size:.72rem;color:#8494a7;text-align:center}
 @media print{body{padding:20px 24px}h2{font-size:1.05rem}.summary-box{break-inside:avoid}}
 </style></head><body>`;
@@ -139,6 +182,16 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
     html += `<div class="summary-stat"><div class="val" style="color:${riskClr}">${riskLvl}</div><div class="lbl">Risk Level</div></div>`;
     html += `<div class="summary-stat"><div class="val">${answered}/${total}</div><div class="lbl">Controls Answered</div></div>`;
     html += `<div class="summary-stat"><div class="val">${gaps.length}</div><div class="lbl">Gaps Identified</div></div>`;
+
+    if (typeof PolicyModule !== 'undefined') {
+      const policySummary = PolicyModule.getAcknowledgmentSummary(state);
+      html += `<div class="summary-stat"><div class="val">${policySummary.acknowledged}/${policySummary.total}</div><div class="lbl">Policies Acknowledged</div></div>`;
+    }
+    if (typeof TrainingModule !== 'undefined') {
+      const trainingSummary = TrainingModule.getTrainingSummary(state);
+      html += `<div class="summary-stat"><div class="val">${trainingSummary.completed}/${trainingSummary.total}</div><div class="lbl">Training Complete</div></div>`;
+    }
+
     html += '</div>';
 
     html += '<h2>Organization Details</h2><div class="meta-grid">';
@@ -153,7 +206,8 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
     }
 
     CATEGORIES.forEach(cat => {
-      const catControls = CONTROLS.filter(c => c.cat === cat.key);
+      const catControls = controls.filter(c => c.cat === cat.key);
+      if (catControls.length === 0) return;
       html += `<h2>${cat.label} <span style="font-size:.8rem;color:#8494a7">(${cat.cfr})</span></h2>`;
       html += '<table><thead><tr><th style="width:70px">ID</th><th>Control</th><th style="width:100px">Status</th><th>Notes</th></tr></thead><tbody>';
 
@@ -167,14 +221,18 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
 
         html += `<tr class="section"><td><strong>${c.id}</strong></td><td>${esc(c.text)}</td>`;
         html += `<td class="${cls}">${statusHtml}</td>`;
-        html += `<td>${esc(state.notes[c.id] || '')}</td></tr>`;
+        html += `<td>${esc(state.notes[c.id] || '')}`;
+        if ((val === 0 || val === 1) && c.remediation) {
+          html += `<div class="remediation-text"><strong>Remediation:</strong> ${esc(c.remediation)}</div>`;
+        }
+        html += '</td></tr>';
       });
       html += '</tbody></table>';
     });
 
     if (gaps.length > 0) {
       html += '<h2>Gap Analysis &amp; Remediation</h2>';
-      html += '<table><thead><tr><th>Control</th><th>Status</th><th>Owner</th><th>Due Date</th></tr></thead><tbody>';
+      html += '<table><thead><tr><th>Control</th><th>Status</th><th>Remediation</th><th>Owner</th><th>Due Date</th></tr></thead><tbody>';
       gaps.forEach(g => {
         const val = state.responses[g.id];
         const sLabel = val === 1 ? 'Partial' : 'Non-Compliant';
@@ -182,6 +240,7 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
         const rem = (state.remediation || {})[g.id] || {};
         html += `<tr><td><strong>${g.id}</strong> \u2014 ${esc(truncateText(g.text, 60))}</td>`;
         html += `<td class="${sCls}">${sLabel}</td>`;
+        html += `<td style="font-size:.78rem">${esc(g.remediation || '\u2014')}</td>`;
         html += `<td>${esc(rem.owner || '\u2014')}</td><td>${esc(rem.dueDate || '\u2014')}</td></tr>`;
       });
       html += '</tbody></table>';
@@ -195,6 +254,35 @@ td{padding:8px 10px;border-bottom:1px solid #e8ecf1;vertical-align:top}
     if (risk.threats) html += `<div class="meta-item" style="margin-bottom:12px"><strong>Threats</strong>${esc(risk.threats)}</div>`;
     if (risk.remediation) html += `<div class="meta-item" style="margin-bottom:12px"><strong>Remediation Plan</strong>${esc(risk.remediation)}</div>`;
     if (risk.residual) html += `<div class="meta-item" style="margin-bottom:12px"><strong>Residual Risk</strong>${esc(risk.residual)}</div>`;
+
+    if (typeof PolicyModule !== 'undefined') {
+      const policySummary = PolicyModule.getAcknowledgmentSummary(state);
+      html += '<h2>Policy Attestation Summary</h2>';
+      html += `<p style="font-size:.85rem;color:#556479;margin-bottom:12px">${policySummary.acknowledged} of ${policySummary.total} applicable policies acknowledged (${policySummary.pct}%)</p>`;
+      html += '<table><thead><tr><th>Category</th><th>Acknowledged</th><th>Total</th></tr></thead><tbody>';
+      Object.keys(policySummary.byCategory).forEach(key => {
+        const cat = policySummary.byCategory[key];
+        if (cat.total === 0) return;
+        html += `<tr><td>${cat.label}</td><td>${cat.acknowledged}</td><td>${cat.total}</td></tr>`;
+      });
+      html += '</tbody></table>';
+    }
+
+    if (typeof TrainingModule !== 'undefined') {
+      const trainingSummary = TrainingModule.getTrainingSummary(state);
+      html += '<h2>Training Completion Status</h2>';
+      html += `<p style="font-size:.85rem;color:#556479;margin-bottom:12px">${trainingSummary.completed} of ${trainingSummary.total} training modules completed (${trainingSummary.pct}%)</p>`;
+      html += '<table><thead><tr><th>Module</th><th>Status</th><th>Completed Date</th><th>Completed By</th></tr></thead><tbody>';
+      const progress = state.trainingProgress || {};
+      TrainingModule.MODULES.forEach(m => {
+        const p = progress[m.id] || {};
+        html += `<tr><td>${esc(m.title)}</td>`;
+        html += `<td class="${p.completed ? 'status-yes' : 'status-unanswered'}">${p.completed ? 'Complete' : 'Incomplete'}</td>`;
+        html += `<td>${esc(p.date || '\u2014')}</td>`;
+        html += `<td>${esc(p.completedBy || '\u2014')}</td></tr>`;
+      });
+      html += '</tbody></table>';
+    }
 
     const att = state.attestation || {};
     if (att.execName || att.execTitle) {
